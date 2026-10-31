@@ -1392,6 +1392,17 @@ RSpec.describe RuboCop::AST::Node do
       it_behaves_like 'traverse', 'group argument', :call, %i[csend send]
     end
 
+    describe '#ancestors' do
+      let(:src) { 'foo&.bar([>>baz<<]).bat' }
+      let(:method) { :ancestors }
+
+      it_behaves_like 'traverse', 'no argument', %i[array csend send]
+
+      it 'returns an empty array for the root node' do
+        expect(node.ancestors.last.ancestors).to eq []
+      end
+    end
+
     describe '#each_child_node' do
       let(:src) { '[1, 2.0, foo, 3i, 4, BAR, 5r]' }
       let(:method) { :each_child_node }

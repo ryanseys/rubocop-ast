@@ -29,6 +29,13 @@ RSpec.describe RuboCop::AST::HashNode do
       it { expect(hash_node.pairs.size).to eq(2) }
       it { expect(hash_node.pairs).to all(be_pair_type) }
     end
+
+    context 'with a hash with a double splat' do
+      let(:source) { '{ a: 1, **foo, b: 2 }' }
+
+      it { expect(hash_node.pairs.size).to eq(2) }
+      it { expect(hash_node.pairs).to all(be_pair_type) }
+    end
   end
 
   describe '#empty?' do
