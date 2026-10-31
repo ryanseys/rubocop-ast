@@ -2503,5 +2503,123 @@ RSpec.describe RuboCop::AST::NodePattern do
         it_behaves_like 'nonmatching'
       end
     end
+
+    context 'when compiling the pattern' do
+      let(:pattern) { '(sym _)' }
+      let(:helper_name) { :def_node_matcher }
+
+      it 'waits for the first call' do
+        expect(described_class).not_to receive(:new)
+        call_helper
+      end
+
+      it 'puts the compiled method in place of the stub' do
+        expect(instance.my_matcher(node)).to be true
+        expect(MyClass.instance_method(method_name).source_location).to eq [__FILE__, line_no]
+      end
+
+      it 'does not warn that the method is redefined' do
+        expect { instance.my_matcher(node) }.not_to output.to_stderr
+      end
+
+      it 'compiles the pattern only once' do
+        expect(described_class).to receive(:new).once.and_call_original
+        2.times { instance.my_matcher(node) }
+      end
+
+      context 'with an invalid pattern' do
+        let(:pattern) { '(sym' }
+
+        it 'raises an error on the first call' do
+          expect { call_helper }.not_to raise_error
+          expect { instance.my_matcher(node) }.to raise_error(described_class::Invalid)
+        end
+
+        context 'when RUBOCOP_AST_EAGER_NODE_PATTERNS is set' do
+          before do
+            allow(ENV).to receive(:fetch).and_call_original
+            allow(ENV).to receive(:fetch).with('RUBOCOP_AST_EAGER_NODE_PATTERNS', false).and_return('1')
+          end
+
+          it 'raises an error when the method is defined' do
+            expect { call_helper }.to raise_error(described_class::Invalid)
+          end
+        end
+      end
+
+      it 'keeps a private visibility' do
+        MyClass.send(:private, call_helper)
+        expect(instance.send(method_name, node)).to be true
+        expect(MyClass).to be_private_method_defined(method_name, false)
+      end
+
+      it 'keeps a protected visibility' do
+        MyClass.send(:protected, call_helper)
+        expect(instance.send(method_name, node)).to be true
+        expect(MyClass).to be_protected_method_defined(method_name, false)
+      end
+
+      it 'defines the compiled method on the class that defines the pattern' do
+        subclass = Class.new(defined_class)
+        expect(subclass.new.my_matcher(node)).to be true
+        expect(subclass.instance_method(method_name).owner).to be MyClass
+        expect(MyClass.instance_method(method_name).source_location).to eq [__FILE__, line_no]
+      end
+
+      context 'when the pattern is defined in a module' do
+        before do
+          stub_const('MyClass', Module.new do
+            extend RuboCop::AST::NodePattern::Macros
+          end)
+        end
+
+        let(:instance) do
+          mod = defined_class
+          Class.new { include mod }.new
+        end
+
+        it { expect(instance).to match_code(node) }
+
+        it 'also works through `module_function`' do
+          MyClass.send(:module_function, call_helper)
+          expect(MyClass.my_matcher(node)).to be true
+          expect(instance.send(method_name, node)).to be true
+          expect(MyClass.my_matcher(parse(':hello'))).to be true
+        end
+      end
+
+      context 'when the method is aliased' do
+        before { defined_class.alias_method(:my_alias, method_name) }
+
+        it 'calls the compiled method through the alias' do
+          expect(instance.my_alias(node)).to be true
+          expect(instance.my_alias(parse('"world"'))).to be_nil
+          expect(instance.my_matcher(node)).to be true
+        end
+
+        it 'keeps a definition that replaced the stub' do
+          defined_class.define_method(method_name) { |_node| :replaced }
+          expect(instance.my_alias(node)).to be true
+          expect(instance.my_matcher(node)).to be :replaced
+        end
+      end
+
+      context 'when the class is frozen' do
+        before { defined_class.freeze }
+
+        it { expect(instance).to match_code(node) }
+      end
+
+      context 'with a singleton method name' do
+        let(:method_name) { 'self.my_matcher' }
+
+        it 'compiles the pattern when the method is defined' do
+          expect(described_class).to receive(:new).and_call_original
+          call_helper
+        end
+
+        it { expect(defined_class.my_matcher(node)).to be true }
+      end
+    end
   end
 end

@@ -1,0 +1,1 @@
+* [ryanseys/rubocop-ast#1](https://github.com/ryanseys/rubocop-ast/pull/1): Compile the patterns of `def_node_matcher` and `def_node_search` on first call instead of when they are defined. ([@ryanseys][])

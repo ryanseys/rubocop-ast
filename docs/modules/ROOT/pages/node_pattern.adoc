@@ -484,6 +484,8 @@ and https://www.rubydoc.info/gems/rubocop-ast/RuboCop/AST/NodePattern/Macros#def
 
 When you define a pattern, it creates a method that accepts a node and tries to match.
 
+NOTE: The pattern is compiled when the method is first called, because most patterns go unused in a given run. Thus an invalid pattern raises `RuboCop::AST::NodePattern::Invalid` on that first call. Set the `RUBOCOP_AST_EAGER_NODE_PATTERNS` environment variable to compile patterns when they are defined, for example in a test suite.
+
 Let's create an example where we're trying to find the symbols `user` and
 `current_user` in expressions like: `user: current_user` or
 `current_user: User.first`, so the objective here is pick all keys:

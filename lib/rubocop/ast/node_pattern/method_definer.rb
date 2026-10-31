@@ -6,22 +6,37 @@ module RuboCop
       # Functionality to turn `match_code` into methods/lambda
       module MethodDefiner
         def def_node_matcher(base, method_name, **defaults)
-          def_helper(base, method_name, **defaults) do |name|
-            params = emit_params('param0 = self')
-            <<~RUBY
-              def #{name}(#{params})
-                #{VAR} = param0
-                #{compile_init}
-                #{emit_method_code}
-              end
-            RUBY
-          end
+          def_helper(base, method_name, **defaults) { |name| compile_as_node_matcher(name) }
         end
 
         def def_node_search(base, method_name, **defaults)
-          def_helper(base, method_name, **defaults) do |name|
-            emit_node_search(name)
+          def_helper(base, method_name, **defaults) { |name| compile_as_node_search(name) }
+        end
+
+        # Returns the source of the method that `def_node_matcher` defines.
+        # @api private
+        def compile_as_node_matcher(method_name)
+          params = emit_params('param0 = self')
+          <<~RUBY
+            def #{method_name}(#{params})
+              #{VAR} = param0
+              #{compile_init}
+              #{emit_method_code}
+            end
+          RUBY
+        end
+
+        # Returns the source of the method that `def_node_search` defines.
+        # @api private
+        def compile_as_node_search(method_name)
+          if method_name.to_s.end_with?('?')
+            on_match = 'return true'
+          else
+            args = emit_params(":#{method_name}", 'param0', forwarding: true)
+            prelude = "return enum_for(#{args}) unless block_given?\n"
+            on_match = emit_yield_capture(VAR)
           end
+          emit_node_search_body(method_name, prelude: prelude, on_match: on_match)
         end
 
         def compile_as_lambda
@@ -58,17 +73,6 @@ module RuboCop
           base.class_eval(src, location.path, location.lineno)
 
           method_name
-        end
-
-        def emit_node_search(method_name)
-          if method_name.to_s.end_with?('?')
-            on_match = 'return true'
-          else
-            args = emit_params(":#{method_name}", 'param0', forwarding: true)
-            prelude = "return enum_for(#{args}) unless block_given?\n"
-            on_match = emit_yield_capture(VAR)
-          end
-          emit_node_search_body(method_name, prelude: prelude, on_match: on_match)
         end
 
         def emit_node_search_body(method_name, prelude:, on_match:)
