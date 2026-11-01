@@ -35,8 +35,16 @@ module RuboCop
         # yield to the block (passing any captures as block arguments).
         # If the node matches, and no block is provided, the new method will
         # return the captures, or `true` if there were none.
+        #
+        # The pattern is compiled when the method is first called, see `LazyMethod`.
         def def_node_matcher(method_name, pattern_str, **keyword_defaults)
-          NodePattern.new(pattern_str).def_node_matcher(self, method_name, **keyword_defaults)
+          if LazyMethod.applies_to?(method_name, keyword_defaults)
+            LazyMethod.define(self, method_name, caller_locations(1, 1).first) do
+              NodePattern.new(pattern_str).compile_as_node_matcher(method_name)
+            end
+          else
+            NodePattern.new(pattern_str).def_node_matcher(self, method_name, **keyword_defaults)
+          end
         end
 
         # Define a method which recurses over the descendants of an AST node,
@@ -45,8 +53,16 @@ module RuboCop
         # If the method name ends with '?', the new method will return `true`
         # as soon as it finds a descendant which matches. Otherwise, it will
         # yield all descendants which match.
+        #
+        # The pattern is compiled when the method is first called, see `LazyMethod`.
         def def_node_search(method_name, pattern_str, **keyword_defaults)
-          NodePattern.new(pattern_str).def_node_search(self, method_name, **keyword_defaults)
+          if LazyMethod.applies_to?(method_name, keyword_defaults)
+            LazyMethod.define(self, method_name, caller_locations(1, 1).first) do
+              NodePattern.new(pattern_str).compile_as_node_search(method_name)
+            end
+          else
+            NodePattern.new(pattern_str).def_node_search(self, method_name, **keyword_defaults)
+          end
         end
       end
 
