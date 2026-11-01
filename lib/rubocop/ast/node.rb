@@ -170,8 +170,11 @@ module RuboCop
         # For example, `lvar` and `send` type nodes are initially created as an
         # `ident` type node and fixed to the appropriate type later.
         # So, the #parent attribute needs to be mutable.
-        each_child_node do |child_node|
-          child_node.parent = self unless child_node.complete?
+        # The children are iterated directly because `each_child_node`
+        # would allocate an array for its arguments for every node.
+        # `@children` is what `super` made of the `children` argument.
+        @children.each do |child|
+          child.parent = self if child.is_a?(::AST::Node) && !child.complete?
         end
       end
 
@@ -230,7 +233,9 @@ module RuboCop
 
       def complete!
         @mutable_attributes.freeze
-        each_child_node(&:complete!)
+        # Like in `#initialize`, iterate the children without `each_child_node`.
+        children.each { |child| child.complete! if child.is_a?(::AST::Node) }
+        self
       end
 
       def complete?
@@ -332,7 +337,11 @@ module RuboCop
       #
       # @return [Array<Node>] an array of ancestor nodes
       def ancestors
-        each_ancestor.to_a
+        # Walk the parents directly to avoid allocating an Enumerator.
+        nodes = []
+        node = self
+        nodes << node while (node = node.parent)
+        nodes
       end
 
       # NOTE: Some rare nodes may have no source, like `s(:args)` in `foo {}`
@@ -619,7 +628,8 @@ module RuboCop
       def loc_is?(which_loc, str)
         return false unless loc?(which_loc)
 
-        loc.public_send(which_loc).is?(str)
+        # The same as `Range#is?(str)`, without its array of arguments.
+        str == loc.public_send(which_loc).source
       end
 
       # @!method match_guard_clause?(node = self)

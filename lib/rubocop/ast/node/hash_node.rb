@@ -13,7 +13,10 @@ module RuboCop
       #
       # @return [Array<PairNode>] an array of `pair` nodes
       def pairs
-        each_pair.to_a
+        # Collect the pairs directly to avoid allocating Enumerators.
+        pairs = []
+        each_child_node(:pair) { |pair| pairs << pair }
+        pairs
       end
 
       # Checks whether the `hash` node contains any `pair`- or `kwsplat` nodes.
